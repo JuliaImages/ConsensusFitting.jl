@@ -19,6 +19,7 @@ makedocs(;
     pages=[
         "Home" => "index.md",
         "RANSAC" => "ransac.md",
+        "Optimal RANSAC" => "optimalransac.md",
         "Bibliography" => "refs.md",
     ],
     plugins=[bib],
