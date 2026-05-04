@@ -34,11 +34,12 @@ Robustly fit a model to data using the RANSAC (Random Sample Consensus) algorith
     seven point correspondences); in that case `distfn` is responsible for
     selecting the best one.
   - `distfn`: Function that scores a model against all data points and returns
-    the inlier set.  Must have the signature `(inliers, M) = distfn(M, x, t)`,
-    where `inliers` is a vector of last-dimension indices into `x` for which the
+    a `NamedTuple`.  Must have the signature `nt = distfn(M, x, t)`, where
+    `nt.inliers` is a vector of last-dimension indices into `x` for which the
     residual is below threshold `t` (i.e., the inlier data points are
-    `x[:, :, ..., inliers]`). When `M` holds multiple candidate models
-    this function should select and return the one with the most inliers.
+    `x[:, :, ..., nt.inliers]`) and `nt.model` is the scored model.  When `M`
+    holds multiple candidate models this function should select and return only the
+    model with the most inliers.
   - `s`: Minimum number of data points required by `fittingfn` to fit a model
     (e.g., 2 for a line, 3 for a plane, 4 for a homography).
   - `t`: Distance threshold below which a data point is classified as an
@@ -141,7 +142,9 @@ function ransac(x, fittingfn, distfn, s, t;
         end
 
         # ── Score the model against all data ──────────────────────────────────
-        inliers, M = distfn(M, x, t)
+        result = distfn(M, x, t)
+        inliers = result.inliers
+        M = result.model
         ninliers = length(inliers)
 
         if ninliers > best_score

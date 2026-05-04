@@ -45,10 +45,19 @@ function _line_dist(M, x, t)
     a, b = M[1], M[2]
     residuals = abs.(x[2, :] .- (a .* x[1, :] .+ b))
     inliers = findall(residuals .< t)
-    return inliers, M
+    return (model=M, inliers=inliers)
 end
 
-# residualfn: per-point vertical residual (needed for pruning tests)
+# distfn with residuals: same as _line_dist but also returns per-point residuals
+# (needed so that optimalransac can perform the optional pruneset step)
+function _line_dist_with_residuals(M, x, t)
+    a, b = M[1], M[2]
+    residuals = abs.(x[2, :] .- (a .* x[1, :] .+ b))
+    inliers = findall(residuals .< t)
+    return (model=M, inliers=inliers, residuals=residuals)
+end
+
+# per-point vertical residual (used for test assertions only)
 function _line_residual(M, x)
     a, b = M[1], M[2]
     return abs.(x[2, :] .- (a .* x[1, :] .+ b))
@@ -70,6 +79,12 @@ end
 
     # All returned indices must be valid column indices of data
     @test all(1 .≤ inliers .≤ size(data, 2))
+
+    # Test that providing residuals from distfn but leaving t_search=t gives same answer
+    Random.seed!(rng, _seed)   # reset for algorithm
+    M2, inliers2 = optimalransac(data, _fit_line, _line_dist_with_residuals, 2, 0.5; rng=rng, t_search=0.5)
+    @test M2 == M
+    @test inliers2 == inliers
 end
 
 @testset "Optimal RANSAC repeatability" begin
@@ -131,9 +146,8 @@ end
     Random.seed!(rng, _seed)   # reset for algorithm
 
     # t_search = 1.0 (wide search), t = 0.3 (tight pruning)
-    M_pruned, inliers_pruned = optimalransac(data, _fit_line, _line_dist, 2, 0.3;
+    M_pruned, inliers_pruned = optimalransac(data, _fit_line, _line_dist_with_residuals, 2, 0.3;
                                              t_search=1.0,
-                                             residualfn=_line_residual,
                                              rng=rng)
 
     # Model quality should still be good
@@ -143,6 +157,15 @@ end
     # After pruning all inliers should lie within the tight tolerance
     residuals = _line_residual(M_pruned, data[:, inliers_pruned])
     @test all(residuals .< 0.3)
+
+    # Use verbose output and test that pruning is enabled
+    buf = IOBuffer()
+    M_pruned_verbose, inliers_pruned_verbose = optimalransac(data, _fit_line, _line_dist_with_residuals, 2, 0.3;
+                                                            t_search=1.0,
+                                                            verbose=true, verbose_io=buf,
+                                                            rng=rng)
+    output = String(take!(buf))
+    @test occursin("pruning enabled: true", output)
 end
 
 @testset "Optimal RANSAC min_consensus parameter" begin
@@ -164,7 +187,7 @@ end
     # Error when data has fewer points than minimum sample size
     bad_data = rand(2, 1)
     @test_throws ErrorException optimalransac(bad_data, identity,
-                                              (M, x, t) -> ([], M), 2, 0.5)
+                                              (M, x, t) -> (model=M, inliers=Int[]), 2, 0.5)
 
     # t_search < t should throw an ArgumentError
     data     = _make_line_data(StableRNG(_seed))

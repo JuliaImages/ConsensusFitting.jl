@@ -15,7 +15,7 @@ changing or 20 iterations are completed.
 # Arguments
  - `x`: full data array (last dimension indexes points)
  - `fittingfn`: model-fitting function; called with ≥ s points
- - `distfn`: scoring/distance function  (inliers, M) = distfn(M, x, t)
+ - `distfn`: scoring/distance function; `nt = distfn(M, x, t)` returns a NamedTuple with keys `model` and `inliers`
  - `t`: inlier distance threshold used for scoring
  - `T_init`: initial tentative inlier indices (global indices into x)
  - `M_init`: initial model
@@ -46,8 +46,10 @@ function _oransac_rescore(x, fittingfn, distfn, t, T_init, M_init;
         isempty(M_raw) && break
 
         # Rescore against all data
-        T_new, M_new = distfn(M_raw, x, t)
-        η_new = length(T_new)
+        result = distfn(M_raw, x, t)
+        T_new  = result.inliers
+        M_new  = result.model
+        η_new  = length(T_new)
 
         # If enough inliers are found, check for convergence or improvement
         if η_new > min_inliers
@@ -92,7 +94,7 @@ that larger set.
 # Arguments
  - `x`: full data array (last dimension indexes points)
  - `fittingfn`: model-fitting function; called with ≥ s points
- - `distfn`: scoring function (inliers, M) = distfn(M, x, t)
+ - `distfn`: scoring function `nt = distfn(M, x, t)`; returns a NamedTuple with keys `model` and `inliers`
  - `s`: minimum sample size
  - `t_search`: inlier threshold for resampling/rescoring (≥ t)
  - `T_init`: initial tentative inlier indices (global)
@@ -132,7 +134,9 @@ function _oransac_resample(x, fittingfn, distfn, s, t_search,
         isempty(M_raw) && continue
 
         # Quick score on the current inlier subset (cheap rejection step).
-        T_sub_local, M_cand = distfn(M_raw, selectdim(x, ndims(x), T), t_search)
+        result_sub = distfn(M_raw, selectdim(x, ndims(x), T), t_search)
+        T_sub_local = result_sub.inliers
+        M_cand = result_sub.model
         length(T_sub_local) ≤ min_inliers && continue
 
         # Convert local subset indices to global, then run full rescore.
@@ -152,19 +156,22 @@ function _oransac_resample(x, fittingfn, distfn, s, t_search,
 end
 
 """
-    _oransac_pruneset(x, fittingfn, residualfn, t, T_global, M_init)
+    _oransac_pruneset(x, fittingfn, distfn, t, T_global, M_init)
 
 Algorithm 4 from [Hast2013](@citet): Pruneset.
 
 Iteratively removes the point with the largest residual from the working set
 and re-estimates the model until every remaining point lies within tolerance
-`t`.  This step requires `residualfn` to compute per-point residuals.
+`t`.  This step requires `distfn` to compute per-point residuals.
 
 # Arguments
  - `x`: full data array
  - `fittingfn`: model-fitting function
- - `residualfn`: function `(M, x) → residuals` (a non-negative vector, one per
-   point in x); needed to identify the most extreme inlier
+ - `distfn`: scoring function `nt = distfn(M, x, t)`; must return a NamedTuple
+   with key `residuals` (a non-negative vector, one per point in `x`) in
+   addition to `model` and `inliers`, in order to identify the most extreme
+   inlier.  If the returned NamedTuple lacks the `residuals` key the pruning
+   step is skipped and the current set is returned unchanged.
  - `t`: tight (pruning) tolerance
  - `T_global`: current inlier indices (global into x)
  - `M_init`: current model
@@ -172,7 +179,7 @@ and re-estimates the model until every remaining point lies within tolerance
 Returns `(M, kept_local)` where `kept_local` are the retained indices into
 `T_global` (i.e. the global indices of the pruned set are `T_global[kept_local]`).
 """
-function _oransac_pruneset(x, fittingfn, residualfn, t, T_global, M_init)
+function _oransac_pruneset(x, fittingfn, distfn, t, T_global, M_init)
     n = length(T_global)
     kept = collect(1:n)   # start with all points
     M = M_init
@@ -182,7 +189,8 @@ function _oransac_pruneset(x, fittingfn, residualfn, t, T_global, M_init)
     done = false
     while length(kept) > 5 && !done
         x_kept = selectdim(x, ndims(x), T_global[kept])
-        residuals = residualfn(M, x_kept)
+        result_kept = distfn(M, x_kept, t)
+        residuals = result_kept.residuals
 
         max_res, max_idx = findmax(residuals)
 
@@ -213,7 +221,6 @@ end
     optimalransac(x, fittingfn, distfn, s, t;
                   rng = Random.default_rng(),
                   t_search = t,
-                  residualfn = nothing,
                   degenfn = _ -> false,
                   verbose = false,
                   max_data_trials = 100,
@@ -240,11 +247,16 @@ Robustly fit a model to data using the Optimal RANSAC algorithm of
     It may also return a collection of multiple candidate models; in that case
     `distfn` is responsible for selecting the best one.
   - `distfn`: Function that scores a model against all data points and returns
-    the inlier set.  Must have the signature `(inliers, M) = distfn(M, x, t)`,
-    where `inliers` is a vector of last-dimension indices into `x` for which
-    the residual is below threshold `t`.  When `M` holds multiple candidate
-    models this function should select and return the one with the most
-    inliers.
+    a `NamedTuple`.  Must have the signature `nt = distfn(M, x, t)`, where
+    `nt.inliers` is a vector of last-dimension indices into `x` for which the
+    residual is below threshold `t` and `nt.model` is the scored model.  When
+    `M` holds multiple candidate models this function should select and return
+    the one with the most inliers via `nt.model`.  To enable the optional
+    pruning step (Algorithm 4), the returned `NamedTuple` must also contain a
+    key `residuals` with a non-negative vector of per-point residuals (one
+    entry per last-dimension slice of the `x` passed to `distfn`).  Pruning is
+    only activated when both `t_search > t` and `distfn` provides
+    `nt.residuals`.
   - `s`: Minimum number of data points required by `fittingfn` to fit a model.
   - `t`: Primary inlier distance threshold (used for the outer sampling step
     and, when pruning is enabled, as the final tight tolerance).
@@ -253,15 +265,11 @@ Robustly fit a model to data using the Optimal RANSAC algorithm of
 
   - `rng::Random.AbstractRNG`: Random number generator.  Defaults to `Random.default_rng()`.
   - `t_search::Real`: Inlier threshold used during the resampling and rescoring
-    steps.  Must satisfy `t_search ≥ t`.  When `t_search > t` and
-    `residualfn` is supplied, a pruning pass is applied after resampling to
-    trim the result back to the tight tolerance `t`, yielding the highest-
-    precision final inlier set.  Defaults to `t` (no separate search
+    steps.  Must satisfy `t_search ≥ t`.  When `t_search > t` and `distfn`
+    returns `residuals` in its `NamedTuple`, a pruning pass is applied after
+    resampling to trim the result back to the tight tolerance `t`, yielding the
+    highest-precision final inlier set.  Defaults to `t` (no separate search
     tolerance; pruning is skipped).
-  - `residualfn`: Function `residuals = residualfn(M, x)` that returns a
-    non-negative vector of per-point residuals (one entry per last-dimension
-    slice of `x`).  Required for the pruning step; ignored when
-    `t_search == t`.  Defaults to `nothing`.
   - `degenfn`: Function that tests whether a minimal sample would produce a
     degenerate model.  Must have the signature `r = degenfn(x)` and return
     `true` when the sample is degenerate.  Defaults to `_ -> false`.
@@ -305,9 +313,10 @@ current inlier set and rescores against all data until the inlier set stops
 changing or 20 iterations are exhausted.
 
 **Pruneset** (Algorithm 4) is an optional final step enabled when
-`t_search > t` and `residualfn` is provided.  It iteratively removes the
-point with the largest residual from the working set and re-estimates the
-model until every remaining point lies within the tight threshold `t`.
+`t_search > t` and `distfn` returns `residuals` in its `NamedTuple`.  It
+iteratively removes the point with the largest residual from the working set
+and re-estimates the model until every remaining point lies within the tight
+threshold `t`.
 
 The algorithm terminates when the same inlier-set *size* is found
 `min_consensus` times in succession, indicating convergence to the optimal
@@ -338,7 +347,6 @@ optimum.
 function optimalransac(x, fittingfn, distfn, s, t;
                        rng::AbstractRNG = default_rng(),
                        t_search::Real = t,
-                       residualfn = nothing,
                        degenfn = _ -> false,
                        verbose::Bool = false,
                        verbose_io::IO = stdout,
@@ -356,13 +364,14 @@ function optimalransac(x, fittingfn, distfn, s, t;
     npts ≥ s ||
         error("optimalransac: data has $npts points but minimum sample size is s = $s")
 
-    # Pruning requires a residual function AND a strictly wider search tolerance.
-    do_pruning = t_search > t && !isnothing(residualfn)
+    # Pruning requires a strictly wider search tolerance; whether distfn
+    # actually provides residuals is checked at runtime inside _oransac_pruneset.
+    do_pruning = t_search > t
 
     best_M = nothing
     best_T = Int[]   # current tracked inlier set (T in Algorithm 1)
     best_η = 0       # best confirmed inlier count (for convergence tracking)
-    σ      = 0       # consecutive same-size confirmation counter
+    σ = 0       # consecutive same-size confirmation counter
     trial_count = 0
 
     while σ < min_consensus && trial_count < max_trials
@@ -394,8 +403,12 @@ function optimalransac(x, fittingfn, distfn, s, t;
         (isnothing(M) || isempty(M)) && continue
 
         # ── Initial scoring with the primary tolerance t (ε₀ in the paper) ─
-        T_cand, M = distfn(M, x, t)
-        η_cand    = length(T_cand)
+        result_init = distfn(M, x, t)
+        T_cand = result_init.inliers
+        M = result_init.model
+        η_cand = length(T_cand)
+        # Now that we have a result from distfn, check whether it provides residuals for pruning; if not, we'll skip pruning later.
+        do_pruning = do_pruning && haskey(result_init, :residuals)
 
         if η_cand > min_inliers
             # ── Resample (Algorithm 2), using the wider search tolerance ────
@@ -405,7 +418,7 @@ function optimalransac(x, fittingfn, distfn, s, t;
 
             # ── Optional pruneset (Algorithm 4), tightening to tolerance t ─
             if do_pruning
-                M, kept = _oransac_pruneset(x, fittingfn, residualfn, t, T_cand, M)
+                M, kept = _oransac_pruneset(x, fittingfn, distfn, t, T_cand, M)
                 T_cand = T_cand[kept]
                 η_cand = length(T_cand)
             else
@@ -457,9 +470,11 @@ function optimalransac(x, fittingfn, distfn, s, t;
         # leave best_η, best_T, best_M and σ unchanged.
 
         verbose && println(verbose_io,
-            "trial $trial_count: candidate = $η_cand, best = $best_η, " *
+            "trial $trial_count: candidates = $η_cand, max candidates = $best_η, " *
             "σ = $σ/$min_consensus")
     end
+
+    verbose && println(verbose_io, "OptimalRANSAC pruning enabled: $do_pruning")
 
     isnothing(best_M) && error("optimalransac: could not find a valid model")
     return best_M, best_T
