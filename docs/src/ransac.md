@@ -44,7 +44,7 @@ early when a satisfying model is found quickly.
 
 RANSAC is well suited to problems where
 
-- the fraction of outliers is large (up to 50 % or more),
+- the fraction of outliers is large (up to 50% or more),
 - the inlier noise is small relative to the outlier spread, and
 - the fitting step for the minimal sample is fast.
 
@@ -52,15 +52,11 @@ It is less suitable when the minimum sample size ``s`` is large (the required
 number of trials grows exponentially with ``s``) or when computing the
 full-dataset residuals is expensive.
 
----
-
 ## API
 
 ```@docs
 ransac
 ```
-
----
 
 ## Example: fitting a line in the presence of outliers
 

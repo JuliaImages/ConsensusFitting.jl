@@ -46,7 +46,7 @@ Robustly fit a model to data using the RANSAC (Random Sample Consensus) algorith
 
 # Keyword Arguments
 
-  - `rng`: Random number generator to use for sampling.  Defaults to
+  - `rng::Random.AbstractRNG`: Random number generator to use for sampling.  Defaults to
     `Random.default_rng()`.
   - `degenfn`: Function that tests whether a candidate minimal sample would
     produce a degenerate model.  Must have the signature `r = degenfn(x)` and
@@ -54,17 +54,17 @@ Robustly fit a model to data using the RANSAC (Random Sample Consensus) algorith
     which treats every sample as non-degenerate and leaves degeneracy detection
     entirely to `fittingfn` (which should return an empty collection for
     degenerate inputs).
-  - `verbose`: When `true`, prints the current trial number and the adaptive
+  - `verbose::Bool`: When `true`, prints the current trial number and the adaptive
     estimate of the total number of trials required at each iteration.  Defaults
     to `false`.
-  - `verbose_io`: `IO` stream to which verbose output is written.  Defaults to
+  - `verbose_io::IO`: `IO` stream to which verbose output is written.  Defaults to
     `stdout`.  Primarily useful for testing or redirecting output.
-  - `max_data_trials`: Maximum number of attempts to draw a non-degenerate
+  - `max_data_trials::Integer`: Maximum number of attempts to draw a non-degenerate
     minimal sample before emitting a warning and advancing to the next outer
     iteration.  Defaults to `100`.
-  - `max_trials`: Hard upper bound on the number of RANSAC iterations.
+  - `max_trials::Integer`: Hard upper bound on the number of RANSAC iterations.
     Defaults to `1000`.
-  - `p`: Desired probability of drawing at least one outlier-free sample.
+  - `p::Real`: Desired probability of drawing at least one outlier-free sample.
     Controls the adaptive stopping criterion.  Defaults to `0.99`.
 
 # Returns
@@ -94,8 +94,8 @@ where ``\\varepsilon`` is the current best estimate of the inlier fraction and
 
 # References
 
-  - [Fischler1981](@cite)
-  - [Hartley2004](@cite)
+  - [Fischler1981](@citet)
+  - [Hartley2004](@citet)
 """
 function ransac(x, fittingfn, distfn, s, t;
                 rng::AbstractRNG = default_rng(),
