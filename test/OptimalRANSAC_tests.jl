@@ -219,7 +219,7 @@ end
     optimalransac(data, _fit_line, _line_dist, 2, 0.5;
                   verbose=true, verbose_io=buf, rng=rng)
     output = String(take!(buf))
-    @test occursin(r"trial \d+: candidate = \d+, best = \d+, σ = \d+/\d+", output)
+    @test occursin(r"trial \d+: candidates = \d+, max candidates = \d+, σ = \d+/\d+", output)
 end
 
 @testset "Optimal RANSAC degenfn respected" begin
