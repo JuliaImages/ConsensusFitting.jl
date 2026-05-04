@@ -37,7 +37,7 @@ using Test
         a, b = M[1], M[2]
         residuals = abs.(x[2, :] .- (a .* x[1, :] .+ b))
         inliers = findall(residuals .< t)
-        return inliers, M
+        return (model=M, inliers=inliers)
     end
 
     M, inliers = ransac(data, fit_line, line_dist, 2, 0.5; rng=rng)
@@ -63,7 +63,7 @@ using Test
 
     # Error on too few points
     bad_data = rand(2, 1)  # only 1 point, need s=2
-    @test_throws ErrorException ransac(bad_data, identity, (M, x, t) -> ([], M), 2, 0.5)
+    @test_throws ErrorException ransac(bad_data, identity, (M, x, t) -> (model=M, inliers=Int[]), 2, 0.5)
 
     # Error on degenerate input: all N points are the same
     degenerate_data = repeat([1.0; 2.0], 1, 10)

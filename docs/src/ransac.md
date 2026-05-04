@@ -102,7 +102,7 @@ function line_dist(M, x, t)
     a, b    = M[1], M[2]
     resid   = abs.(x[2, :] .- (a .* x[1, :] .+ b))
     inliers = findall(resid .< t)
-    return inliers, M
+    return (model=M, inliers=inliers)
 end
 
 # ── Run RANSAC ─────────────────────────────────────────────────────────────
