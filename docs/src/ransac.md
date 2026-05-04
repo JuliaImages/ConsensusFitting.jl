@@ -183,8 +183,6 @@ println("Recovered slope:     ", round(μ[1]; digits=4), " ± ", round(sqrt(Σθ
 println("Recovered intercept:     ", round(μ[2]; digits=4), " ± ", round(sqrt(Σθ[2,2]); digits=4), "  (true: $b_true)")
 ```
 
----
-
 ## References
 This page cites the following references:
 
