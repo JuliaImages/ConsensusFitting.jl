@@ -145,11 +145,11 @@ function line_dist(M, x, t)
     a, b    = M[1], M[2]
     resid   = abs.(x[2, :] .- (a .* x[1, :] .+ b))
     inliers = findall(resid .< t)
-    return (model=M, inliers=inliers, residual=resid)
+    return (model=M, inliers=inliers, residuals=resid)
 end
 
 # Run Optimal RANSAC with pruning
-M, inliers = optimalransac(data, fit_line, line_dist, 2, 1.0; t_search=2.0, min_consensus=10)
+M, inliers = optimalransac(data, fit_line, line_dist, 2, 2.0; t_search=4.0, min_consensus=10)
 
 println("Recovered slope:     ", round(M[1]; digits=4), "  (true: $a_true)")
 println("Recovered intercept: ", round(M[2]; digits=4), "  (true: $b_true)")
@@ -185,7 +185,8 @@ fig
 ```
 
 Generally a "finalizer" step (doing a final fit to the set of all inliers) is redundant with Optimal RANSAC,
-but we will do one to estimate uncertainties.
+as this is already what is returned. Here we will just redo the fit with the inliers to additionally estimate
+parameter uncertainties. You will see that the best-fit values found `μ` are the same as what was output in `M` above.
 
 ```@example optimalransac_line
 using LinearAlgebra: dot
@@ -225,6 +226,7 @@ end
 μ, Σθ, σ² = fit_line_overconstrained(data[:, inliers])
 println("Recovered slope:     ", round(μ[1]; digits=4), " ± ", round(sqrt(Σθ[1,1]); digits=4), "  (true: $a_true)")
 println("Recovered intercept:     ", round(μ[2]; digits=4), " ± ", round(sqrt(Σθ[2,2]); digits=4), "  (true: $b_true)")
+println("M == μ:     ", M == μ)
 ```
 
 ## References
