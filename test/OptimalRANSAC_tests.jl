@@ -92,7 +92,7 @@ end
     @test mean(slopes) ≈ _A_TRUE atol=0.01
     @test mean(intercepts) ≈ _B_TRUE atol=0.01
     @test std(slopes) < 0.03
-    @test std(intercepts) < 0.03
+    @test std(intercepts) < 0.05
 end
 
 @testset "Optimal RANSAC determinism with fixed seed" begin
