@@ -445,19 +445,14 @@ function optimalransac(x, fittingfn, distfn, s, t;
             best_M = M
         elseif η_cand == prev_best_η && prev_best_η > min_inliers
             # Same count as current best — check whether the set composition
-            # also matches (paper's `|T| = |T'|` comparison).
-            if length(best_T) == length(T_cand)
-                # If same size, increment convergence counter
+            # also matches (paper's convergence criterion).
+            if Set(best_T) == Set(T_cand)
+                # Identical inlier set — increment convergence counter
                 σ += 1
-                best_T = copy(T_cand)   # record most recent realisation
-                best_M = M
-            else
-                # Same count but different composition (shouldn't occur with
-                # the previous `> prev_best_η` branch already handled, but
-                # guards the very first valid result when best_T is empty).
-                best_T = copy(T_cand)
-                best_M = M
             end
+            # Record most recent realization of this size
+            best_T = copy(T_cand)
+            best_M = M
         elseif η_cand == prev_best_η - 1 && prev_best_η > min_inliers
             # One fewer inlier than the current best (edge case noted in the
             # paper where pruning reduces the set by exactly one point).
