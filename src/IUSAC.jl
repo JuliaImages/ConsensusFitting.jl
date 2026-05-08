@@ -223,7 +223,11 @@ function iusac(x, fittingfn, distfn, s, t;
         if n_star > best_score
             best_score = n_star
             best_inliers = copy(C_star)
-            best_M = M_star
+            # ── Re-estimate from C* (Step 3 of Kim2024: p* = g(C*)) ──────────────
+            # The paper explicitly re-estimates the model from the final consensus
+            # set before returning, ensuring M_star is the LS fit to C_star and
+            # that no separate user-supplied finalizer is needed.
+            best_M = fittingfn(selectdim(x, ndims(x), C_star))
 
             # Adaptively tighten the stopping criterion (same formula as RANSAC).
             frac = n_star / npts
