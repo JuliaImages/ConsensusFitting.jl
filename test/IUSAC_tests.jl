@@ -10,7 +10,7 @@ const A_TRUE = 2.0
 const B_TRUE = 3.0
 const N_INLIERS  = 100
 const N_OUTLIERS = 40
-const SEED = 4321
+const SEED = 1234
 
 function make_line_data(rng)
     x_in  = collect(range(-10.0, 10.0; length=N_INLIERS))
