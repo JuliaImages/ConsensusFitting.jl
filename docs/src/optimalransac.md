@@ -72,13 +72,16 @@ The runtime of Optimal RANSAC is generally longer than standard RANSAC
 as it typically makes more calls to `distfn` and `fittingfn` per data trial.
 Additionally, `fittingfn` must support overconstrained problems which require
 more computation to solve than minimally-constrained problems as expected
-in standard RANSAC. For small problems (e.g., simple line fitting) this additional
+in standard RANSAC, so calls to `fittingfn` may be much more expensive
+if your dataset is large. For small problems (e.g., simple line fitting) this additional
 cost is often negligible and Optimal RANSAC may be preferred for its robustness
 and repeatibility. Optimal RANSAC may be preferrable to standard RANSAC when:
 
 - **repeatability** is important regardless of RNG state (standard RANSAC
   is repeatible given the same seeded RNG, but generally not otherwise, while
   Optimal RANSAC is designed to be repeatible regardless of RNG state),
+- `fittingfn` supports overconstrained fits with more than `s`
+  points (required for the rescoring step),
 - the inlier fraction is **very low** (well below 5%), making 
   RANSAC's standard adaptive stopping criterion unreliable, or
 - a **high-precision** final inlier set is needed (using the two-tolerance
