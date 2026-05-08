@@ -11,4 +11,5 @@ doctest(ConsensusFitting)
 @testset "ConsensusFitting.jl" verbose=true begin
     @safetestset "RANSAC tests" include("RANSAC_tests.jl")
     @safetestset "Optimal RANSAC tests" include("OptimalRANSAC_tests.jl")
+    @safetestset "IUSAC tests" include("IUSAC_tests.jl")
 end
