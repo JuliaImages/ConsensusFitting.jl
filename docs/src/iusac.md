@@ -26,38 +26,47 @@ decrease the residual.
 
 Given a dataset ``X`` of ``N`` points, a minimum sample size ``s``, an inlier
 distance threshold ``\tau_e``, a stopping threshold ``\hat{\eta}``, and a
-convergence tolerance ``\varepsilon``, one outer iteration of IUSAC proceeds
+convergence tolerance ``\varepsilon``, our implementation of IUSAC proceeds
 as follows:
 
-1. **Initialization** — draw a random minimal sample of ``s`` points and fit a
+1. **Initialization -- outer loop** — for each iteration of the outer loop,
+   draw a random minimal sample of ``s`` points and fit a
    candidate model ``p_0``.  Score it against all data to obtain the initial
-   consensus set ``C_0 = \operatorname{inlier}(X, p_0, \tau_e)``.
+   consensus set ``C_0 = \operatorname{inlier}(X, p_0, \tau_e)``. Strategies
+   for the initialization can vary; here we adopt a standard RANSAC approach
+   for the initialization (see [RANSAC](@ref)), generating the initial hypotheses
+   in an outer RANSAC loop with its own convergence criterion (`p`).
+   The outer RANSAC loop generates increasingly likely hypotheses for input
+   to the inner IUSAC loop, which is necessary as the convergence of IUSAC
+   depends on an initial hypothesis "close" to the true model.
 
-2. **Iterative update** — starting from ``C_0``, repeat:
+2. **Iterative update -- inner loop** — starting from ``C_0``, repeat:
    - (a) Re-estimate the model from all current inliers: ``p_k = g(C_{k-1})``.
    - (b) Rescore against all data: ``C_k = \operatorname{inlier}(X, p_k, \tau_e)``.
    - (c) **Convergence check**:
      - If ``|C_k| < |C_{k-1}|``: set ``C^* = C_{k-1}`` and stop.  The
        consensus set has shrunk, so the previous set was better.
      - If ``|C_k| < (1 + \varepsilon)|C_{k-1}|``: set ``C^* = C_k`` and stop.
-       Growth has stagnated (relative increase below ``\varepsilon = 0.001``).
+       Growth has stagnated (relative increase below ``\varepsilon = 0.001``);
+       this generally only triggers when the number of inliers is high.
      - Otherwise: continue with ``C_{k-1} \leftarrow C_k``.
 
-3. **Stopping criterion** — if ``|C^*| \geq \hat{\eta} N``, re-estimate
-   ``p^* = g(C^*)`` and terminate.
+3. **Stopping criterion -- inner loop** — if ``|C^*| \geq \hat{\eta} N``, re-estimate
+   ``p^* = g(C^*)`` and terminate inner loop. Otherwise, repeat steps 2–3 a number of times
+   (keyword argument `max_inner_iterations`).
 
-4. Otherwise, repeat steps 1–3 up to ``N`` times.
+5. **Stopping criterion -- outer loop** As our outer loop is a standard RANSAC,
+   we use the standard RANSAC stopping criterion, where the number of outer iterations
+   ``N_{out}`` is updated adaptively as
 
-The number of outer iterations ``N`` is updated adaptively using the same
-formula as RANSAC:
+   ```math
+   N = \frac{\log(1 - p)}{\log\!\left(1 - \left(\varepsilon_{\mathrm{in}}\right)^s\right)}
+   ```
 
-```math
-N = \frac{\log(1 - p)}{\log\!\left(1 - \varepsilon_{\mathrm{in}}^s\right)}
-```
-
-where ``\varepsilon_{\mathrm{in}}`` is the current best estimate of the inlier
-fraction and ``s`` is the minimum sample size.  The algorithm also supports an
-explicit early-stop threshold `eta_b`.
+    where ``\varepsilon_{\mathrm{in}}`` is the current best estimate of the inlier
+    fraction and ``s`` is the minimum sample size.  The algorithm also supports an
+    explicit early-stop threshold `eta_b`, which will terminate the outer loop
+    when ``\varepsilon_{\mathrm{in}} ≥ \varepsilon_b``.
 
 ### Why it is repeatable
 
@@ -72,11 +81,22 @@ of outer trials, making IUSAC highly repeatable in practice.
 
 ### When to use IUSAC
 
-IUSAC is well suited to problems where:
+As IUSAC is essentially RANSAC with an additional inner iteration loop, 
+the runtime is generally longer than standard RANSAC as it typically 
+makes more calls to `distfn` and `fittingfn` *per data trial*.
+However, IUSAC may converge with fewer outer RANSAC iterations, so often
+it is not much more expensive than standard RANSAC.
+However, `fittingfn` must support overconstrained problems which require
+more computation to solve than minimally-constrained problems as expected
+in standard RANSAC, so calls to `fittingfn` may be more expensive
+if your dataset is large. For small problems (e.g., simple line fitting)
+this additional cost is often negligible and IUSAC may be preferred
+for its robustness and repeatibility. 
+IUSAC may be preferrable to standard RANSAC when:
 
 - **repeatability** across runs (with different random seeds) is important,
 - the inlier fraction is **moderate** (``\sim 30\%`` or more),
-- `fittingfn` naturally supports **least-squares** fits with more than `s`
+- `fittingfn` supports overconstrained fits with more than `s`
   points (required for the iterative update step).
 
 IUSAC is less suitable when:
@@ -186,9 +206,12 @@ axislegend(ax; position=:lt)
 fig
 ```
 
-Because the iterative update re-estimates the model from all current inliers,
-`M` already represents the least-squares fit to the identified inlier set and
-no separate "finalizer" step is needed.
+Because the iterative update re-estimates the model when the list of inliers
+is expanded, `M` already represents the fit to the identified
+inlier set and no separate "finalizer" step is needed.
+Here we will just redo the fit with the inliers to additionally estimate
+parameter uncertainties. You will see that the best-fit values found `μ`
+are the same as what was output in `M` above.
 
 ```@example iusac_line
 using LinearAlgebra: dot
