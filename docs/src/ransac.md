@@ -2,7 +2,7 @@
 CurrentModule = ConsensusFitting
 ```
 
-# RANSAC
+# [RANSAC](@id RANSAC)
 
 ## Background
 
