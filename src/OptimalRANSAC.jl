@@ -59,7 +59,7 @@ function _oransac_rescore(x, fittingfn, distfn, t, T_init, M_init;
                 T_best = T_new
                 M_best = M_new
                 T_work = T_new
-            elseif T_new == T_work
+            elseif Set(T_new) == Set(T_work) # Use `Set`s to check for identical composition, ignoring order
                 # Exact same inlier set — converged
                 M_best = M_new
                 T_best = T_new
@@ -446,7 +446,7 @@ function optimalransac(x, fittingfn, distfn, s, t;
         elseif η_cand == prev_best_η && prev_best_η > min_inliers
             # Same count as current best — check whether the set composition
             # also matches (paper's convergence criterion).
-            if Set(best_T) == Set(T_cand)
+            if Set(best_T) == Set(T_cand) # Use `Set`s to check for identical composition, ignoring order
                 # Identical inlier set — increment convergence counter
                 σ += 1
             end
