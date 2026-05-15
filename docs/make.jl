@@ -30,6 +30,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/JuliaAstro/ConsensusFitting.jl.git",
+    repo="github.com/JuliaImages/ConsensusFitting.jl.git",
     devbranch="main",
 )
