@@ -12,7 +12,7 @@ makedocs(;
     sitename="ConsensusFitting.jl",
     format=Documenter.HTML(;
         prettyurls = get(ENV, "CI", nothing) == "true",
-        canonical="https://JuliaAstro.org/ConsensusFitting.jl/stable/",
+        canonical="https://JuliaImages.org/ConsensusFitting.jl/stable/",
         edit_link="main",
         assets=String[],
     ),
